@@ -7,7 +7,7 @@ echo ""
 echo "正在启动图形界面..."
 echo ""
 
-python3 minesweeper_gui.py
+python3 run.py
 
 if [ $? -ne 0 ]; then
     echo ""

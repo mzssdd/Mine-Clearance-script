@@ -6,7 +6,7 @@ echo ====================================
 echo.
 echo 正在启动图形界面...
 echo.
-python minesweeper_gui.py
+python run.py
 if errorlevel 1 (
     echo.
     echo 错误：程序运行失败！
