@@ -2,9 +2,12 @@
 主窗口类
 """
 
-import tkinter as tk
-from tkinter import messagebox, filedialog
-from threading import Thread
+from PySide6.QtWidgets import (
+  QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+  QGroupBox, QMessageBox, QFileDialog
+)
+from PySide6.QtCore import Qt, QThread, Signal, QTimer
+from PySide6.QtGui import QFont
 import time
 
 from core import BoardAnalyzer, ImageProcessor, MinesweeperSolver
@@ -13,13 +16,35 @@ from utils.image_utils import numpy_to_pil
 from gui.widgets import ControlPanel, ImageCanvas, InfoText
 
 
-class MainWindow:
+class CaptureThread(QThread):
+  """截屏线程"""
+  
+  countdown_signal = Signal(int)
+  capture_signal = Signal()
+  
+  def __init__(self, delay):
+    super().__init__()
+    self.delay = delay
+  
+  def run(self):
+    """线程运行"""
+    for i in range(self.delay, 0, -1):
+      self.countdown_signal.emit(i)
+      time.sleep(1)
+    
+    self.capture_signal.emit()
+
+
+class MainWindow(QMainWindow):
   """主窗口类"""
   
-  def __init__(self, root):
-    self.root = root
-    self.root.title(GUIConfig.WINDOW_TITLE)
-    self.root.geometry(GUIConfig.WINDOW_SIZE)
+  def __init__(self):
+    super().__init__()
+    self.setWindowTitle(GUIConfig.WINDOW_TITLE)
+    
+    # 解析窗口大小
+    width, height = map(int, GUIConfig.WINDOW_SIZE.split('x'))
+    self.resize(width, height)
     
     # 初始化核心组件
     self.image_processor = ImageProcessor()
@@ -34,86 +59,77 @@ class MainWindow:
   
   def setup_ui(self):
     """设置用户界面"""
+    # 创建中心部件
+    central_widget = QWidget()
+    self.setCentralWidget(central_widget)
+    main_layout = QVBoxLayout()
+    central_widget.setLayout(main_layout)
+    
     # 标题
-    title_label = tk.Label(
-      self.root,
-      text=f"🎮 {GUIConfig.WINDOW_TITLE}",
-      font=GUIConfig.TITLE_FONT,
-      pady=10
-    )
-    title_label.pack()
+    title_label = QLabel(f"🎮 {GUIConfig.WINDOW_TITLE}")
+    title_label.setFont(QFont(GUIConfig.TITLE_FONT[0], GUIConfig.TITLE_FONT[1]))
+    title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    title_label.setStyleSheet("padding: 10px;")
+    main_layout.addWidget(title_label)
     
     # 控制面板
-    self.control_panel = ControlPanel(
-      self.root,
-      on_size_change=self.on_size_changed,
-      on_capture=self.start_capture,
-      on_analyze=self.analyze_board,
-      on_save=self.save_image
-    )
-    self.control_panel.pack()
+    self.control_panel = ControlPanel()
+    self.control_panel.size_changed.connect(self.on_size_changed)
+    self.control_panel.capture_clicked.connect(self.start_capture)
+    self.control_panel.analyze_clicked.connect(self.analyze_board)
+    self.control_panel.save_clicked.connect(self.save_image)
+    main_layout.addWidget(self.control_panel)
     
     # 状态栏
-    self.status_label = tk.Label(
-      self.root,
-      text=Messages.READY,
-      font=GUIConfig.LABEL_FONT,
-      bg="#f0f0f0",
-      pady=5
-    )
-    self.status_label.pack(fill=tk.X)
+    self.status_label = QLabel(Messages.READY)
+    self.status_label.setFont(QFont(GUIConfig.LABEL_FONT[0], GUIConfig.LABEL_FONT[1]))
+    self.status_label.setStyleSheet("background-color: #f0f0f0; padding: 5px;")
+    main_layout.addWidget(self.status_label)
     
     # 主显示区域
-    display_frame = tk.Frame(self.root)
-    display_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+    display_layout = QHBoxLayout()
     
     # 左侧 - 原始图像
-    left_frame = tk.LabelFrame(
-      display_frame,
-      text="📷 捕获的图像",
-      font=GUIConfig.BUTTON_FONT
-    )
-    left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
-    
-    self.original_canvas = ImageCanvas(left_frame)
-    self.original_canvas.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+    left_group = QGroupBox("📷 捕获的图像")
+    left_group.setFont(QFont(GUIConfig.BUTTON_FONT[0], GUIConfig.BUTTON_FONT[1]))
+    left_layout = QVBoxLayout()
+    self.original_canvas = ImageCanvas()
+    self.original_canvas.setMinimumSize(400, 400)
+    left_layout.addWidget(self.original_canvas)
+    left_group.setLayout(left_layout)
+    display_layout.addWidget(left_group)
     
     # 右侧 - 提示图像和信息
-    right_frame = tk.Frame(display_frame)
-    right_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
+    right_layout = QVBoxLayout()
     
     # 提示图像
-    hint_frame = tk.LabelFrame(
-      right_frame,
-      text="💡 游戏提示",
-      font=GUIConfig.BUTTON_FONT
-    )
-    hint_frame.pack(fill=tk.BOTH, expand=True)
-    
-    self.hint_canvas = ImageCanvas(hint_frame)
-    self.hint_canvas.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+    hint_group = QGroupBox("💡 游戏提示")
+    hint_group.setFont(QFont(GUIConfig.BUTTON_FONT[0], GUIConfig.BUTTON_FONT[1]))
+    hint_layout = QVBoxLayout()
+    self.hint_canvas = ImageCanvas()
+    self.hint_canvas.setMinimumSize(400, 300)
+    hint_layout.addWidget(self.hint_canvas)
+    hint_group.setLayout(hint_layout)
+    right_layout.addWidget(hint_group)
     
     # 提示信息
-    info_frame = tk.LabelFrame(
-      right_frame,
-      text="ℹ️ 提示信息",
-      font=GUIConfig.BUTTON_FONT
-    )
-    info_frame.pack(fill=tk.BOTH, padx=0, pady=5)
+    info_group = QGroupBox("ℹ️ 提示信息")
+    info_group.setFont(QFont(GUIConfig.BUTTON_FONT[0], GUIConfig.BUTTON_FONT[1]))
+    info_layout = QVBoxLayout()
+    self.info_text = InfoText(height=10)
+    info_layout.addWidget(self.info_text)
+    info_group.setLayout(info_layout)
+    right_layout.addWidget(info_group)
     
-    self.info_text = InfoText(info_frame, height=10)
-    self.info_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+    display_layout.addLayout(right_layout)
+    main_layout.addLayout(display_layout)
     
     # 图例
-    legend_frame = tk.Frame(self.root, bg="#f8f8f8", pady=5)
-    legend_frame.pack(fill=tk.X)
-    
-    tk.Label(
-      legend_frame,
-      text="🟢 绿色边框 = 安全格子(可点击)    🔴 红色边框 = 地雷格子(需标记)",
-      font=GUIConfig.LABEL_FONT,
-      bg="#f8f8f8"
-    ).pack()
+    legend_label = QLabel("🟢 绿色边框 = 安全格子(可点击)    🔴 红色边框 = 地雷格子(需标记)")
+    legend_label.setFont(QFont(GUIConfig.LABEL_FONT[0], GUIConfig.LABEL_FONT[1]))
+    legend_label.setStyleSheet("background-color: #f8f8f8; padding: 5px;")
+    legend_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    main_layout.addWidget(legend_label)
   
   def on_size_changed(self, size):
     """棋盘大小改变时"""
@@ -133,17 +149,15 @@ class MainWindow:
     self.update_status(f"⏱️ {GUIConfig.CAPTURE_DELAY}秒后将捕获屏幕，请切换到扫雷游戏窗口...")
     self.control_panel.enable_capture(False)
     
-    # 在新线程中延迟捕获
-    Thread(target=self.capture_screen_delayed, daemon=True).start()
+    # 创建并启动截屏线程
+    self.capture_thread = CaptureThread(GUIConfig.CAPTURE_DELAY)
+    self.capture_thread.countdown_signal.connect(self.on_countdown)
+    self.capture_thread.capture_signal.connect(self.capture_and_display)
+    self.capture_thread.start()
   
-  def capture_screen_delayed(self):
-    """延迟捕获屏幕"""
-    for i in range(GUIConfig.CAPTURE_DELAY, 0, -1):
-      self.root.after(0, self.update_status, Messages.CAPTURING.format(i))
-      time.sleep(1)
-    
-    # 捕获屏幕
-    self.root.after(0, self.capture_and_display)
+  def on_countdown(self, seconds):
+    """倒计时更新"""
+    self.update_status(Messages.CAPTURING.format(seconds))
   
   def capture_and_display(self):
     """捕获并显示屏幕"""
@@ -163,23 +177,23 @@ class MainWindow:
       self.control_panel.enable_analyze(True)
       
     except Exception as e:
-      messagebox.showerror("错误", Messages.ERROR_CAPTURE.format(str(e)))
+      QMessageBox.critical(self, "错误", Messages.ERROR_CAPTURE.format(str(e)))
       self.control_panel.enable_capture(True)
   
   def analyze_board(self):
     """分析棋盘并生成提示"""
     if self.image_processor.screenshot is None:
-      messagebox.showwarning("警告", Messages.WARNING_NO_SCREENSHOT)
+      QMessageBox.warning(self, "警告", Messages.WARNING_NO_SCREENSHOT)
       return
     
     try:
       self.update_status(Messages.ANALYZING)
       
       # 获取棋盘大小
-      if self.control_panel.size_var.get() == "自定义":
+      if self.control_panel.size_combo.currentText() == "自定义":
         rows, cols = self.control_panel.get_custom_size()
         if rows is None or cols is None:
-          messagebox.showerror("错误", "请输入有效的行列数！")
+          QMessageBox.critical(self, "错误", "请输入有效的行列数！")
           return
         self.rows, self.cols = rows, cols
       
@@ -211,7 +225,7 @@ class MainWindow:
       self.update_status(Messages.ANALYSIS_COMPLETE.format(len(safe_cells), len(mine_cells)))
       
     except Exception as e:
-      messagebox.showerror("错误", Messages.ERROR_ANALYZE.format(str(e)))
+      QMessageBox.critical(self, "错误", Messages.ERROR_ANALYZE.format(str(e)))
       import traceback
       traceback.print_exc()
   
@@ -254,14 +268,15 @@ class MainWindow:
   def save_image(self):
     """保存提示图像"""
     if self.image_processor.screenshot is None:
-      messagebox.showwarning("警告", Messages.WARNING_NO_IMAGE)
+      QMessageBox.warning(self, "警告", Messages.WARNING_NO_IMAGE)
       return
     
     try:
-      filename = filedialog.asksaveasfilename(
-        defaultextension=".png",
-        filetypes=FileConfig.FILE_TYPES,
-        initialfile=FileConfig.DEFAULT_FILENAME
+      filename, _ = QFileDialog.getSaveFileName(
+        self,
+        "保存图片",
+        FileConfig.DEFAULT_FILENAME,
+        "PNG文件 (*.png);;所有文件 (*.*)"
       )
       
       if filename:
@@ -274,12 +289,12 @@ class MainWindow:
           self.board_analyzer.get_cell_size()
         )
         hint_image.save(filename)
-        messagebox.showinfo("成功", Messages.SUCCESS_SAVE.format(filename))
+        QMessageBox.information(self, "成功", Messages.SUCCESS_SAVE.format(filename))
     
     except Exception as e:
-      messagebox.showerror("错误", Messages.ERROR_SAVE.format(str(e)))
+      QMessageBox.critical(self, "错误", Messages.ERROR_SAVE.format(str(e)))
   
   def update_status(self, message):
     """更新状态栏"""
-    self.status_label.config(text=message)
+    self.status_label.setText(message)
 

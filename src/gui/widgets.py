@@ -2,132 +2,161 @@
 自定义GUI组件
 """
 
-import tkinter as tk
-from tkinter import ttk
+from PySide6.QtWidgets import (
+  QWidget, QHBoxLayout, QVBoxLayout, QLabel, QPushButton,
+  QComboBox, QLineEdit, QTextEdit, QFrame
+)
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QPixmap, QFont
 
 
-class ControlPanel(tk.Frame):
+class ControlPanel(QWidget):
   """控制面板组件"""
   
-  def __init__(self, parent, on_size_change, on_capture, on_analyze, on_save):
-    super().__init__(parent, pady=10)
-    
-    self.on_size_change = on_size_change
-    self.on_capture = on_capture
-    self.on_analyze = on_analyze
-    self.on_save = on_save
-    
+  size_changed = Signal(str)
+  capture_clicked = Signal()
+  analyze_clicked = Signal()
+  save_clicked = Signal()
+  
+  def __init__(self, parent=None):
+    super().__init__(parent)
     self._create_widgets()
   
   def _create_widgets(self):
     """创建控件"""
+    layout = QHBoxLayout()
+    layout.setContentsMargins(10, 10, 10, 10)
+    
     # 棋盘大小设置
-    size_frame = tk.Frame(self)
-    size_frame.pack(side=tk.LEFT, padx=10)
+    size_label = QLabel("棋盘大小:")
+    size_label.setFont(QFont("Arial", 10))
+    layout.addWidget(size_label)
     
-    tk.Label(size_frame, text="棋盘大小:", font=("Arial", 10)).pack(side=tk.LEFT)
-    
-    self.size_var = tk.StringVar(value="9x9")
-    self.size_combo = ttk.Combobox(
-      size_frame,
-      textvariable=self.size_var,
-      values=["9x9", "16x16", "16x30", "自定义"],
-      width=10,
-      state="readonly"
-    )
-    self.size_combo.pack(side=tk.LEFT, padx=5)
-    self.size_combo.bind("<<ComboboxSelected>>", lambda e: self.on_size_change(self.size_var.get()))
+    self.size_combo = QComboBox()
+    self.size_combo.addItems(["9x9", "16x16", "16x30", "自定义"])
+    self.size_combo.setCurrentText("9x9")
+    self.size_combo.setFixedWidth(100)
+    self.size_combo.currentTextChanged.connect(self.size_changed.emit)
+    layout.addWidget(self.size_combo)
     
     # 自定义大小输入
-    self.custom_frame = tk.Frame(self)
+    self.custom_frame = QWidget()
+    custom_layout = QHBoxLayout()
+    custom_layout.setContentsMargins(0, 0, 0, 0)
     
-    tk.Label(self.custom_frame, text="行:").pack(side=tk.LEFT)
-    self.rows_entry = tk.Entry(self.custom_frame, width=5)
-    self.rows_entry.pack(side=tk.LEFT, padx=2)
-    self.rows_entry.insert(0, "9")
+    custom_layout.addWidget(QLabel("行:"))
+    self.rows_entry = QLineEdit("9")
+    self.rows_entry.setFixedWidth(50)
+    custom_layout.addWidget(self.rows_entry)
     
-    tk.Label(self.custom_frame, text="列:").pack(side=tk.LEFT)
-    self.cols_entry = tk.Entry(self.custom_frame, width=5)
-    self.cols_entry.pack(side=tk.LEFT, padx=2)
-    self.cols_entry.insert(0, "9")
+    custom_layout.addWidget(QLabel("列:"))
+    self.cols_entry = QLineEdit("9")
+    self.cols_entry.setFixedWidth(50)
+    custom_layout.addWidget(self.cols_entry)
+    
+    self.custom_frame.setLayout(custom_layout)
+    self.custom_frame.hide()
+    layout.addWidget(self.custom_frame)
+    
+    layout.addSpacing(20)
     
     # 按钮区域
-    btn_frame = tk.Frame(self)
-    btn_frame.pack(side=tk.LEFT, padx=20)
+    self.capture_btn = QPushButton("📸 捕获屏幕 (5秒后)")
+    self.capture_btn.setStyleSheet("""
+      QPushButton {
+        background-color: #4CAF50;
+        color: white;
+        font-weight: bold;
+        padding: 5px 15px;
+        border: none;
+        border-radius: 3px;
+      }
+      QPushButton:hover {
+        background-color: #45a049;
+      }
+    """)
+    self.capture_btn.clicked.connect(self.capture_clicked.emit)
+    layout.addWidget(self.capture_btn)
     
-    self.capture_btn = tk.Button(
-      btn_frame,
-      text="📸 捕获屏幕 (5秒后)",
-      command=self.on_capture,
-      bg="#4CAF50",
-      fg="white",
-      font=("Arial", 10, "bold"),
-      padx=15,
-      pady=5
-    )
-    self.capture_btn.pack(side=tk.LEFT, padx=5)
+    self.analyze_btn = QPushButton("🔍 分析并提示")
+    self.analyze_btn.setStyleSheet("""
+      QPushButton {
+        background-color: #2196F3;
+        color: white;
+        font-weight: bold;
+        padding: 5px 15px;
+        border: none;
+        border-radius: 3px;
+      }
+      QPushButton:hover {
+        background-color: #0b7dda;
+      }
+      QPushButton:disabled {
+        background-color: #cccccc;
+      }
+    """)
+    self.analyze_btn.setEnabled(False)
+    self.analyze_btn.clicked.connect(self.analyze_clicked.emit)
+    layout.addWidget(self.analyze_btn)
     
-    self.analyze_btn = tk.Button(
-      btn_frame,
-      text="🔍 分析并提示",
-      command=self.on_analyze,
-      bg="#2196F3",
-      fg="white",
-      font=("Arial", 10, "bold"),
-      padx=15,
-      pady=5,
-      state=tk.DISABLED
-    )
-    self.analyze_btn.pack(side=tk.LEFT, padx=5)
+    self.save_btn = QPushButton("💾 保存图片")
+    self.save_btn.setStyleSheet("""
+      QPushButton {
+        background-color: #FF9800;
+        color: white;
+        font-weight: bold;
+        padding: 5px 15px;
+        border: none;
+        border-radius: 3px;
+      }
+      QPushButton:hover {
+        background-color: #e68900;
+      }
+      QPushButton:disabled {
+        background-color: #cccccc;
+      }
+    """)
+    self.save_btn.setEnabled(False)
+    self.save_btn.clicked.connect(self.save_clicked.emit)
+    layout.addWidget(self.save_btn)
     
-    self.save_btn = tk.Button(
-      btn_frame,
-      text="💾 保存图片",
-      command=self.on_save,
-      bg="#FF9800",
-      fg="white",
-      font=("Arial", 10, "bold"),
-      padx=15,
-      pady=5,
-      state=tk.DISABLED
-    )
-    self.save_btn.pack(side=tk.LEFT, padx=5)
+    layout.addStretch()
+    self.setLayout(layout)
   
   def show_custom_inputs(self, show=True):
     """显示或隐藏自定义输入"""
-    if show:
-      self.custom_frame.pack(side=tk.LEFT, padx=5)
-    else:
-      self.custom_frame.pack_forget()
+    self.custom_frame.setVisible(show)
   
   def get_custom_size(self):
     """获取自定义大小"""
     try:
-      rows = int(self.rows_entry.get())
-      cols = int(self.cols_entry.get())
+      rows = int(self.rows_entry.text())
+      cols = int(self.cols_entry.text())
       return rows, cols
     except ValueError:
       return None, None
   
   def enable_analyze(self, enabled=True):
     """启用/禁用分析按钮"""
-    self.analyze_btn.config(state=tk.NORMAL if enabled else tk.DISABLED)
+    self.analyze_btn.setEnabled(enabled)
   
   def enable_save(self, enabled=True):
     """启用/禁用保存按钮"""
-    self.save_btn.config(state=tk.NORMAL if enabled else tk.DISABLED)
+    self.save_btn.setEnabled(enabled)
   
   def enable_capture(self, enabled=True):
     """启用/禁用捕获按钮"""
-    self.capture_btn.config(state=tk.NORMAL if enabled else tk.DISABLED)
+    self.capture_btn.setEnabled(enabled)
 
 
-class ImageCanvas(tk.Canvas):
+class ImageCanvas(QLabel):
   """图像显示画布"""
   
-  def __init__(self, parent, **kwargs):
-    super().__init__(parent, bg="white", **kwargs)
-    self.photo = None
+  def __init__(self, parent=None):
+    super().__init__(parent)
+    self.setStyleSheet("background-color: white; border: 1px solid #ccc;")
+    self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    self.setScaledContents(False)
   
   def display_image(self, pil_image, fit_to_canvas=True):
     """
@@ -137,51 +166,33 @@ class ImageCanvas(tk.Canvas):
       pil_image: PIL Image对象
       fit_to_canvas: 是否调整大小适应画布
     """
-    from utils.image_utils import resize_to_fit, create_photo_image
+    from utils.image_utils import resize_to_fit, pil_to_qpixmap
     
     if fit_to_canvas:
-      self.update()
-      canvas_width = self.winfo_width()
-      canvas_height = self.winfo_height()
-      pil_image = resize_to_fit(pil_image, canvas_width, canvas_height)
+      canvas_width = self.width()
+      canvas_height = self.height()
+      if canvas_width > 0 and canvas_height > 0:
+        pil_image = resize_to_fit(pil_image, canvas_width, canvas_height)
     
-    self.photo = create_photo_image(pil_image)
-    self.delete("all")
-    
-    canvas_width = self.winfo_width()
-    canvas_height = self.winfo_height()
-    
-    self.create_image(
-      canvas_width // 2,
-      canvas_height // 2,
-      image=self.photo,
-      anchor=tk.CENTER
-    )
+    pixmap = pil_to_qpixmap(pil_image)
+    self.setPixmap(pixmap)
 
 
-class InfoText(tk.Text):
+class InfoText(QTextEdit):
   """信息显示文本框"""
   
-  def __init__(self, parent, **kwargs):
-    super().__init__(
-      parent,
-      font=("Courier New", 9),
-      wrap=tk.WORD,
-      **kwargs
-    )
-    
-    # 添加滚动条
-    scrollbar = tk.Scrollbar(self)
-    scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    self.config(yscrollcommand=scrollbar.set)
-    scrollbar.config(command=self.yview)
+  def __init__(self, parent=None, height=None):
+    super().__init__(parent)
+    self.setFont(QFont("Courier New", 9))
+    self.setReadOnly(True)
+    if height:
+      self.setMinimumHeight(height * 20)
   
   def set_text(self, text):
     """设置文本内容"""
-    self.delete(1.0, tk.END)
-    self.insert(1.0, text)
+    self.setPlainText(text)
   
   def append_text(self, text):
     """追加文本"""
-    self.insert(tk.END, text)
+    self.append(text)
 

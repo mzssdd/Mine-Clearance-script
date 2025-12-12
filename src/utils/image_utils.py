@@ -4,7 +4,8 @@
 
 import cv2
 import numpy as np
-from PIL import Image, ImageTk
+from PIL import Image
+from PySide6.QtGui import QPixmap, QImage
 
 
 def numpy_to_pil(image):
@@ -47,17 +48,34 @@ def resize_to_fit(image, canvas_width, canvas_height):
   return image.resize((new_width, new_height), Image.LANCZOS)
 
 
-def create_photo_image(image):
+def pil_to_qpixmap(pil_image):
   """
-  创建Tkinter PhotoImage对象
+  将PIL图像转换为QPixmap
   
   Args:
-    image: PIL Image对象
+    pil_image: PIL Image对象
     
   Returns:
-    ImageTk.PhotoImage对象
+    QPixmap对象
   """
-  return ImageTk.PhotoImage(image)
+  # 转换PIL图像为RGB模式
+  if pil_image.mode != 'RGB':
+    pil_image = pil_image.convert('RGB')
+  
+  # 获取图像数据
+  img_data = pil_image.tobytes('raw', 'RGB')
+  
+  # 创建QImage
+  qimage = QImage(
+    img_data,
+    pil_image.width,
+    pil_image.height,
+    pil_image.width * 3,
+    QImage.Format.Format_RGB888
+  )
+  
+  # 转换为QPixmap
+  return QPixmap.fromImage(qimage)
 
 
 def detect_board_region(image, min_size=200):
