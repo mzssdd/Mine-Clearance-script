@@ -19,6 +19,8 @@ class MinesweeperSolver:
     self.board_analyzer = board_analyzer
     self.safe_cells = []
     self.mine_cells = []
+    self.safe_reasons = {}  # 安全格子的推理依据
+    self.mine_reasons = {}  # 地雷格子的推理依据
   
   def solve(self):
     """
@@ -34,6 +36,8 @@ class MinesweeperSolver:
     
     self.safe_cells = []
     self.mine_cells = []
+    self.safe_reasons = {}
+    self.mine_reasons = {}
     
     rows, cols = board.shape
     
@@ -42,12 +46,18 @@ class MinesweeperSolver:
       for j in range(cols):
         if board[i, j] > 0:  # 如果是数字格子
           result = self._analyze_cell(i, j, board)
-          self.safe_cells.extend(result['safe'])
-          self.mine_cells.extend(result['mines'])
-    
-    # 去重
-    self.safe_cells = list(set(self.safe_cells))
-    self.mine_cells = list(set(self.mine_cells))
+          
+          # 记录安全格子及其原因
+          for cell in result['safe']:
+            if cell not in self.safe_reasons:
+              self.safe_cells.append(cell)
+              self.safe_reasons[cell] = result['reason']
+          
+          # 记录地雷格子及其原因
+          for cell in result['mines']:
+            if cell not in self.mine_reasons:
+              self.mine_cells.append(cell)
+              self.mine_reasons[cell] = result['reason']
     
     return self.safe_cells, self.mine_cells
   
@@ -61,7 +71,7 @@ class MinesweeperSolver:
       board: 棋盘状态
       
     Returns:
-      dict包含safe和mines列表
+      dict包含safe、mines和reason
     """
     number = board[row, col]
     neighbors = self._get_neighbors(row, col, board.shape)
@@ -75,16 +85,27 @@ class MinesweeperSolver:
       elif board[nr, nc] == CellState.FLAGGED:
         flagged.append((nr, nc))
     
-    result = {'safe': [], 'mines': []}
+    result = {'safe': [], 'mines': [], 'reason': ''}
     
     # 规则1: 如果未知格子数 = 剩余雷数，所有未知格子都是雷
     remaining_mines = number - len(flagged)
     if len(unknown) == remaining_mines and remaining_mines > 0:
       result['mines'] = unknown
+      result['reason'] = (
+        f"位置({row+1},{col+1})数字{number}，"
+        f"周围已标记{len(flagged)}个雷，"
+        f"剩余{len(unknown)}个未知格子=剩余{remaining_mines}个雷，"
+        f"因此这些格子必定是雷"
+      )
     
     # 规则2: 如果已标记雷数 = 数字，所有未知格子都安全
     if len(flagged) == number and len(unknown) > 0:
       result['safe'] = unknown
+      result['reason'] = (
+        f"位置({row+1},{col+1})数字{number}，"
+        f"周围已标记{len(flagged)}个雷（等于数字），"
+        f"因此剩余{len(unknown)}个格子必定安全"
+      )
     
     return result
   
@@ -135,5 +156,17 @@ class MinesweeperSolver:
       'safe_count': len(self.safe_cells),
       'mine_count': len(self.mine_cells),
       'has_hints': len(self.safe_cells) > 0 or len(self.mine_cells) > 0
+    }
+  
+  def get_reasons(self):
+    """
+    获取推理依据
+    
+    Returns:
+      dict包含safe_reasons和mine_reasons
+    """
+    return {
+      'safe_reasons': self.safe_reasons,
+      'mine_reasons': self.mine_reasons
     }
 

@@ -15,6 +15,7 @@ from core.solver import MinesweeperSolver
 from core.board_analyzer import BoardAnalyzer
 from gui.game_board import GameBoard
 from utils.constants import GUIConfig, BOARD_SIZES
+from utils.ai_service import AIService
 
 
 class SimpleBoardAnalyzer:
@@ -50,6 +51,9 @@ class MainWindow(QMainWindow):
     self.timer = QTimer()
     self.start_time = 0
     self.elapsed_time = 0
+    
+    # AI服务
+    self.ai_service = AIService("sk-c3104a3b952149aab0957280dd255eba")
     
     # 难度配置
     self.difficulties = {
@@ -313,10 +317,10 @@ class MainWindow(QMainWindow):
     
     # 创建分析器和求解器
     analyzer = SimpleBoardAnalyzer(game)
-    solver = MinesweeperSolver(analyzer)
+    self.solver = MinesweeperSolver(analyzer)
     
     # 求解
-    safe_cells, mine_cells = solver.solve()
+    safe_cells, mine_cells = self.solver.solve()
     
     # 显示提示信息
     self.display_hint_info(safe_cells, mine_cells)
@@ -326,6 +330,11 @@ class MainWindow(QMainWindow):
   
   def display_hint_info(self, safe_cells, mine_cells):
     """显示提示信息"""
+    # 获取推理依据
+    reasons = self.solver.get_reasons()
+    safe_reasons = reasons['safe_reasons']
+    mine_reasons = reasons['mine_reasons']
+    
     info = "━━━━━━━━━━━━━━━\n"
     info += "  AI 提示信息\n"
     info += "━━━━━━━━━━━━━━━\n\n"
@@ -336,19 +345,37 @@ class MainWindow(QMainWindow):
     
     if safe_cells:
       info += "🟢 安全格子（建议点击）:\n"
-      for i, (row, col) in enumerate(safe_cells[:10], 1):
-        info += f"  {i}. 行 {row+1}, 列 {col+1}\n"
-      if len(safe_cells) > 10:
-        info += f"  ... 还有 {len(safe_cells)-10} 个\n"
-      info += "\n"
+      for i, (row, col) in enumerate(safe_cells[:5], 1):
+        info += f"  {i}. 行{row+1}列{col+1}\n"
+        # 获取AI解释
+        if (row, col) in safe_reasons:
+          cell_info = {
+            'row': row + 1,
+            'col': col + 1,
+            'reason': safe_reasons[(row, col)]
+          }
+          explanation = self.ai_service.generate_explanation(cell_info)
+          info += f"     💡 {explanation}\n"
+        info += "\n"
+      if len(safe_cells) > 5:
+        info += f"  ... 还有 {len(safe_cells)-5} 个\n\n"
     
     if mine_cells:
       info += "🔴 地雷格子（建议标记）:\n"
-      for i, (row, col) in enumerate(mine_cells[:10], 1):
-        info += f"  {i}. 行 {row+1}, 列 {col+1}\n"
-      if len(mine_cells) > 10:
-        info += f"  ... 还有 {len(mine_cells)-10} 个\n"
-      info += "\n"
+      for i, (row, col) in enumerate(mine_cells[:5], 1):
+        info += f"  {i}. 行{row+1}列{col+1}\n"
+        # 获取AI解释
+        if (row, col) in mine_reasons:
+          cell_info = {
+            'row': row + 1,
+            'col': col + 1,
+            'reason': mine_reasons[(row, col)]
+          }
+          explanation = self.ai_service.generate_explanation(cell_info)
+          info += f"     💣 {explanation}\n"
+        info += "\n"
+      if len(mine_cells) > 5:
+        info += f"  ... 还有 {len(mine_cells)-5} 个\n\n"
     
     if not safe_cells and not mine_cells:
       info += "⚠️ 未找到明确的提示\n\n"

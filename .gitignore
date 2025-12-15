@@ -92,4 +92,5 @@ media/
 *.jpg
 *.jpeg
 minesweeper_hint.*
+test_*.py
 
