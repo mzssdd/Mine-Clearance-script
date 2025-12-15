@@ -13,8 +13,9 @@ class CellButton(QPushButton):
   """单个格子按钮"""
   
   # 自定义信号
-  left_clicked = Signal(int, int)   # 左键点击
-  right_clicked = Signal(int, int)  # 右键点击
+  left_clicked = Signal(int, int)    # 左键点击
+  right_clicked = Signal(int, int)   # 右键点击
+  double_clicked = Signal(int, int)  # 双击
   
   def __init__(self, row: int, col: int):
     super().__init__()
@@ -37,6 +38,11 @@ class CellButton(QPushButton):
       self.left_clicked.emit(self.row, self.col)
     elif event.button() == Qt.MouseButton.RightButton:
       self.right_clicked.emit(self.row, self.col)
+  
+  def mouseDoubleClickEvent(self, event):
+    """鼠标双击事件"""
+    if event.button() == Qt.MouseButton.LeftButton:
+      self.double_clicked.emit(self.row, self.col)
   
   def update_display(self, cell: Cell, game_over: bool = False):
     """
@@ -186,6 +192,7 @@ class GameBoard(QWidget):
         btn = CellButton(i, j)
         btn.left_clicked.connect(self._on_cell_left_click)
         btn.right_clicked.connect(self._on_cell_right_click)
+        btn.double_clicked.connect(self._on_cell_double_click)
         self.layout.addWidget(btn, i, j)
         row_buttons.append(btn)
       self.buttons.append(row_buttons)
@@ -225,6 +232,23 @@ class GameBoard(QWidget):
     
     self.game.toggle_flag(row, col)
     self._update_board()
+  
+  def _on_cell_double_click(self, row: int, col: int):
+    """双击格子（和弦操作：自动挖开周围未标记的格子）"""
+    if self.game is None or self.game.game_over:
+      return
+    
+    success = self.game.chord_reveal(row, col)
+    self._update_board()
+    
+    if not success and self.game.game_over:
+      # 踩雷了
+      self.game_over_signal.emit(False)
+    elif self.game.game_won:
+      # 获胜了
+      self.game_over_signal.emit(True)
+    else:
+      self.cell_revealed.emit()
   
   def _update_board(self):
     """更新棋盘显示"""

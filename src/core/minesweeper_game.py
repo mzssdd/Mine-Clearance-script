@@ -263,5 +263,80 @@ class MinesweeperGame:
   def get_remaining_mines(self) -> int:
     """获取剩余地雷数（总数-标记数）"""
     return self.total_mines - self.flag_count
+  
+  def chord_reveal(self, row: int, col: int) -> bool:
+    """
+    和弦操作：双击数字格子，自动翻开周围未标记的格子
+    前提：周围已标记的地雷数等于该数字
+    
+    Args:
+      row: 行索引
+      col: 列索引
+      
+    Returns:
+      True表示成功，False表示失败（踩雷或条件不满足）
+    """
+    if self.game_over:
+      return False
+    
+    cell = self.board[row][col]
+    
+    # 只有已翻开的数字格子才能进行和弦操作
+    if not cell.is_revealed or cell.adjacent_mines == 0:
+      return False
+    
+    # 统计周围已标记的格子数
+    neighbors = self._get_neighbors(row, col)
+    flagged_count = 0
+    
+    for nr, nc in neighbors:
+      if self.board[nr][nc].is_flagged:
+        flagged_count += 1
+    
+    # 如果已标记数不等于数字，不能进行和弦操作
+    if flagged_count != cell.adjacent_mines:
+      return False
+    
+    # 翻开所有未标记的邻居格子
+    success = True
+    for nr, nc in neighbors:
+      neighbor = self.board[nr][nc]
+      if not neighbor.is_revealed and not neighbor.is_flagged:
+        # 如果碰到地雷，游戏失败
+        if neighbor.is_mine:
+          neighbor.is_revealed = True
+          self.game_over = True
+          self._reveal_all_mines()
+          success = False
+          break
+        else:
+          self._reveal_cell(nr, nc)
+    
+    # 检查是否获胜
+    if success:
+      self._check_win()
+    
+    return success
+  
+  def _get_neighbors(self, row: int, col: int) -> list:
+    """
+    获取相邻格子的坐标
+    
+    Args:
+      row: 行索引
+      col: 列索引
+      
+    Returns:
+      相邻格子坐标列表
+    """
+    neighbors = []
+    for dr in [-1, 0, 1]:
+      for dc in [-1, 0, 1]:
+        if dr == 0 and dc == 0:
+          continue
+        nr, nc = row + dr, col + dc
+        if 0 <= nr < self.rows and 0 <= nc < self.cols:
+          neighbors.append((nr, nc))
+    return neighbors
 
 
