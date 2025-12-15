@@ -4,7 +4,7 @@
 
 from PySide6.QtWidgets import (
   QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-  QGroupBox, QMessageBox, QPushButton, QComboBox
+  QGroupBox, QMessageBox, QPushButton, QComboBox, QApplication
 )
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QFont
@@ -379,12 +379,91 @@ class MainWindow(QMainWindow):
     
     if not safe_cells and not mine_cells:
       info += "⚠️ 未找到明确的提示\n\n"
-      info += "可能需要:\n"
-      info += "  • 翻开更多格子\n"
-      info += "  • 根据已知信息推理\n"
-      info += "  • 需要一定的运气！\n"
+      info += "🤖 正在进行AI概率分析...\n"
+      self.hint_text.setText(info)
+      QApplication.processEvents()  # 立即更新UI
+      
+      # 调用AI概率分析
+      probability_result = self._analyze_probability()
+      
+      if probability_result and probability_result.get('suggestions'):
+        info = "━━━━━━━━━━━━━━━\n"
+        info += "  AI 概率分析\n"
+        info += "━━━━━━━━━━━━━━━\n\n"
+        
+        info += f"📊 局面分析:\n"
+        info += f"   {probability_result.get('analysis', '当前需要概率判断')}\n\n"
+        
+        info += "🎯 建议尝试格子（按安全概率排序）:\n\n"
+        
+        for i, suggestion in enumerate(probability_result['suggestions'][:5], 1):
+          row = suggestion['row']
+          col = suggestion['col']
+          prob = suggestion['probability']
+          reason = suggestion['reason']
+          
+          # 概率颜色标识
+          if prob >= 70:
+            prob_icon = "🟢 高"
+          elif prob >= 50:
+            prob_icon = "🟡 中"
+          else:
+            prob_icon = "🟠 低"
+          
+          info += f"  {i}. 行{row+1}列{col+1}\n"
+          info += f"     安全概率: {prob}% {prob_icon}\n"
+          info += f"     理由: {reason}\n\n"
+        
+        info += "⚠️ 注意：\n"
+        info += "  这是概率建议，仍有踩雷风险！\n"
+        info += "  建议优先尝试概率高的格子。\n"
+      else:
+        info = "━━━━━━━━━━━━━━━\n"
+        info += "  提示信息\n"
+        info += "━━━━━━━━━━━━━━━\n\n"
+        info += "⚠️ 未找到明确的提示\n\n"
+        info += "建议:\n"
+        info += "  • 翻开更多格子\n"
+        info += "  • 尝试边缘或角落位置\n"
+        info += "  • 需要一定的运气！\n"
     
     self.hint_text.setText(info)
+  
+  def _analyze_probability(self):
+    """使用AI进行概率分析"""
+    game = self.game_board.get_game()
+    if not game:
+      return None
+    
+    # 收集棋盘状态
+    board_state = {
+      'rows': game.rows,
+      'cols': game.cols,
+      'total_mines': game.total_mines,
+      'remaining_mines': game.get_remaining_mines(),
+      'revealed_cells': [],
+      'flagged_cells': [],
+      'unknown_cells': []
+    }
+    
+    # 遍历棋盘收集信息
+    for row in range(game.rows):
+      for col in range(game.cols):
+        cell = game.board[row][col]
+        if cell.is_revealed:
+          board_state['revealed_cells'].append((row, col, cell.adjacent_mines))
+        elif cell.is_flagged:
+          board_state['flagged_cells'].append((row, col))
+        else:
+          board_state['unknown_cells'].append((row, col))
+    
+    # 调用AI服务
+    try:
+      result = self.ai_service.analyze_probability(board_state)
+      return result
+    except Exception as e:
+      print(f"AI概率分析失败: {e}")
+      return None
   
   def highlight_hints(self, safe_cells, mine_cells):
     """在棋盘上高亮显示提示"""
