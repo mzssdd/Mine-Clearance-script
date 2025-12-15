@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
 echo ====================================
-echo   扫雷辅助工具 - GUI版本
+echo   扫雷游戏 + AI智能提示
 echo ====================================
 echo.
-echo 正在启动图形界面...
+echo 正在启动游戏...
 echo.
 python run.py
 if errorlevel 1 (
